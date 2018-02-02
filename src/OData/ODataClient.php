@@ -3,10 +3,12 @@
 namespace SaintSystems\OData;
 
 use Closure;
+use SaintSystems\OData\Exception\ODataException;
 use SaintSystems\OData\Query\Builder;
 use SaintSystems\OData\Query\Grammar;
+use SaintSystems\OData\Query\IGrammar;
+use SaintSystems\OData\Query\IProcessor;
 use SaintSystems\OData\Query\Processor;
-use SaintSystems\OData\Exception\ODataException;
 
 class ODataClient implements IODataClient
 {
@@ -18,29 +20,36 @@ class ODataClient implements IODataClient
 
     /**
      * The IAuthenticationProvider for authenticating request messages.
-     * @var \Microsoft\Core\Http\IAuthenticationProvider
+     * @var IAuthenticationProvider
      */
     private $authenticationProvider;
 
     /**
      * The IHttpProvider for sending HTTP requests.
-     * @var \Microsoft\Core\Http\IHttpProvider
+     * @var IHttpProvider
      */
     private $httpProvider;
 
     /**
      * The query grammar implementation.
      *
-     * @var \SaintSystems\OData\Grammar
+     * @var IGrammar
      */
     protected $queryGrammar;
 
     /**
      * The query post processor implementation.
      *
-     * @var \SaintSystems\OData\Processor
+     * @var IProcessor
      */
     protected $postProcessor;
+
+    /**
+     * The return type for the entities
+     *
+     * @var string
+     */
+    private $entityReturnType;
 
     /**
      * Constructs a new ODataClient.
@@ -48,10 +57,11 @@ class ODataClient implements IODataClient
      * @param IAuthenticationProvider $authenticationProvider The IAuthenticationProvider for authenticating request messages.
      * @param IHttpProvider|null      $httpProvider           The IHttpProvider for sending requests.
      */
-    public function __construct($baseUrl, 
-                                Closure $authenticationProvider = null, 
-                                IHttpProvider $httpProvider = null)
-    {
+    public function __construct(
+        $baseUrl,
+        Closure $authenticationProvider = null,
+        IHttpProvider $httpProvider = null
+    ) {
         $this->setBaseUrl($baseUrl);
         $this->authenticationProvider = $authenticationProvider;
         $this->httpProvider = $httpProvider ?: new GuzzleHttpProvider();
@@ -77,7 +87,7 @@ class ODataClient implements IODataClient
     /**
      * Get the default query grammar instance.
      *
-     * @return \SaintSystems\OData\Grammar
+     * @return IGrammar
      */
     protected function getDefaultQueryGrammar()
     {
@@ -97,16 +107,18 @@ class ODataClient implements IODataClient
     /**
      * Get the default post processor instance.
      *
-     * @return \SaintSystems\OData\Processor
+     * @return IProcessor
      */
     protected function getDefaultPostProcessor()
     {
-        return new Processor;
+        return new Processor();
     }
 
     /**
      * Gets the IAuthenticationProvider for authenticating requests.
      * @var IAuthenticationProvider
+     *
+     * @return Closure|IAuthenticationProvider
      */
     public function getAuthenticationProvider()
     {
@@ -115,6 +127,7 @@ class ODataClient implements IODataClient
 
     /**
      * Gets the base URL for requests of the client.
+     *
      * @return string
      */
     public function getBaseUrl()
@@ -124,7 +137,9 @@ class ODataClient implements IODataClient
 
     /**
      * Sets the base URL for requests of the client.
-     * @param void
+     * @param mixed $value
+     *
+     * @throws ODataException
      */
     public function setBaseUrl($value)
     {
@@ -138,7 +153,8 @@ class ODataClient implements IODataClient
 
     /**
      * Gets the IHttpProvider for sending HTTP requests.
-     * @var \Microsoft\Core\Http\IHttpProvider
+     *
+     * @return IHttpProvider
      */
     public function getHttpProvider()
     {
@@ -148,18 +164,33 @@ class ODataClient implements IODataClient
     /**
      * Begin a fluent query against an odata service
      *
-     * @param  string  $entitySet
-     * @return \SaintSystems\OData\Query\Builder
+     * @param string $entitySet
+     *
+     * @return Builder
      */
-    public function entitySet($entitySet)
+    public function from($entitySet)
     {
-        return $this->query()->entitySet($entitySet);
+        return $this->query()->from($entitySet);
+    }
+
+    /**
+     * Begin a fluent query against an odata service
+     *
+     * @param array $properties
+     *
+     * @return Builder
+     */
+    public function select($properties = [])
+    {
+        $properties = is_array($properties) ? $properties : func_get_args();
+
+        return $this->query()->select($properties);
     }
 
     /**
      * Get a new query builder instance.
      *
-     * @return \SaintSystems\OData\Query\Builder
+     * @return Builder
      */
     public function query()
     {
@@ -171,9 +202,10 @@ class ODataClient implements IODataClient
     /**
      * Run a GET HTTP request against the service.
      *
-     * @param  string  $requestUri
-     * @param  array  $bindings
-     * @return array
+     * @param string $requestUri
+     * @param array  $bindings
+     *
+     * @return IODataRequest
      */
     public function get($requestUri, $bindings = [])
     {
@@ -183,22 +215,24 @@ class ODataClient implements IODataClient
     /**
      * Return an ODataRequest
      *
-     * @param  string                           $requestUri
-     * @param  \Microsoft\Core\Http\HttpMethod  $method
+     * @param string $method
+     * @param string $requestUri
+     *
      * @return IODataRequest
      *
-     * @throws \SaintSystems\OData\ODataException
+     * @throws ODataException
      */
     public function request($method, $requestUri)
     {
-        $request = new ODataRequest($method, $this->baseUrl.$requestUri, $this);
+        $request = new ODataRequest($method, $this->baseUrl.$requestUri, $this, $this->entityReturnType);
+        
         return $request->execute();
     }
 
     /**
      * Get the query grammar used by the connection.
      *
-     * @return \SaintSystems\OData\Grammar
+     * @return IGrammar
      */
     public function getQueryGrammar()
     {
@@ -208,10 +242,11 @@ class ODataClient implements IODataClient
     /**
      * Set the query grammar used by the connection.
      *
-     * @param  \SaintSystems\OData\Grammar  $grammar
+     * @param  IGrammar  $grammar
+     *
      * @return void
      */
-    public function setQueryGrammar(Grammar $grammar)
+    public function setQueryGrammar(IGrammar $grammar)
     {
         $this->queryGrammar = $grammar;
     }
@@ -219,7 +254,7 @@ class ODataClient implements IODataClient
     /**
      * Get the query post processor used by the connection.
      *
-     * @return \SaintSystems\OData\Processor
+     * @return IProcessor
      */
     public function getPostProcessor()
     {
@@ -229,13 +264,22 @@ class ODataClient implements IODataClient
     /**
      * Set the query post processor used by the connection.
      *
-     * @param  \SaintSystems\OData\Processor  $processor
+     * @param IProcessor $processor
+     *
      * @return void
      */
-    public function setPostProcessor(Processor $processor)
+    public function setPostProcessor(IProcessor $processor)
     {
         $this->postProcessor = $processor;
     }
+
+    /**
+     * Set the entity return type
+     *
+     * @param string $entityReturnType
+     */
+    public function setEntityReturnType($entityReturnType)
+    {
+        $this->entityReturnType = $entityReturnType;
+    }
 }
-
-

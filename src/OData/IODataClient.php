@@ -2,6 +2,9 @@
 
 namespace SaintSystems\OData;
 
+use SaintSystems\OData\Query\IGrammar;
+use SaintSystems\OData\Query\IProcessor;
+
 interface IODataClient
 {
     /**
@@ -25,10 +28,20 @@ interface IODataClient
     /**
      * Begin a fluent query against an OData service
      *
-     * @param  string  $entitySet
+     * @param string $entitySet
+     *
      * @return \SaintSystems\OData\Query\Builder
      */
-    public function entitySet($entitySet);
+    public function from($entitySet);
+
+    /**
+     * Begin a fluent query against an odata service
+     *
+     * @param array $properties
+     *
+     * @return \SaintSystems\OData\Query\Builder
+     */
+    public function select($properties = []);
 
     /**
      * Get a new query builder instance.
@@ -36,4 +49,44 @@ interface IODataClient
      * @return \SaintSystems\OData\Query\Builder
      */
     public function query();
+
+    /**
+     * @param $requestUri
+     * @param array $bindings
+     *
+     * @return IODataRequest
+     */
+    public function get($requestUri, $bindings = []);
+
+    /**
+     * Get the query grammar used by the connection.
+     *
+     * @return IGrammar
+     */
+    public function getQueryGrammar();
+
+    /**
+     * Set the query grammar used by the connection.
+     *
+     * @param IGrammar $grammar
+     *
+     * @return void
+     */
+    public function setQueryGrammar(IGrammar $grammar);
+
+    /**
+     * Get the query post processor used by the connection.
+     *
+     * @return IProcessor
+     */
+    public function getPostProcessor();
+
+    /**
+     * Set the query post processor used by the connection.
+     *
+     * @param IProcessor $processor
+     *
+     * @return void
+     */
+    public function setPostProcessor(IProcessor $processor);
 }

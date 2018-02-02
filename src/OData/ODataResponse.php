@@ -99,7 +99,7 @@ class ODataResponse
     /**
     * Get the undecoded body of the HTTP response
     *
-    * @return array The undecoded body
+    * @return string The undecoded body
     */
     public function getRawBody()
     {
@@ -146,7 +146,7 @@ class ODataResponse
             }
             return $objArray;
         } else {
-            return new $class($result);
+            return [new $class($result)];
         }
     }
 
